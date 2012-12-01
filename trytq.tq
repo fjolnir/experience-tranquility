@@ -1,0 +1,88 @@
+import "WebAppKit"
+import "html"
+
+@WebApp < WAApplication {
+    + enableExternalAccess `yes`
+}
+
+t        = Tag
+maxRepls = 10
+maxCpu   = 0.05
+app      = WebApp applicationOnPort: 8080
+fontURL  = #"http://fonts.googleapis.com/css?family=Oxygen:400,700,300' rel='stylesheet"
+
+replTasks = {}
+
+getRepl = { req, resp |
+    ^nil unless cookie = req cookieForName: #replId
+
+    task = replTasks[cookie value]
+    if task == nil {
+        ^nil if replTasks count >= maxRepls
+        task = NSTask new setLaunchPath: #sandbox;
+                       setStandardInput: NSPipe new;
+                      setStandardOutput: NSPipe new;
+                setCurrentDirectoryPath: #".";
+                                 launch;
+                                   self
+        async {
+            \ For some reason NSTaskDidTerminateNotification doesn't get sent
+            task waitUntilExit
+            replTasks[cookie value] = nil
+        }
+        replTasks[cookie value] = task
+    }
+    ^task
+}
+killRepl = { req, resp |
+    ^nil unless cookie = req cookieForName: #replId
+    replTasks[cookie value] terminate
+}
+
+app addRequestHandler: (WADirectoryHandler alloc initWithDirectory: #resources
+                                                       requestPath: "/")
+
+app handleGET: "/execute" with: { req, resp |
+    code = (req queryParameters at: #code) + "\n"
+    repl = getRepl(req, resp)
+
+    repl standardInput fileHandleForWriting writeData: (code dataUsingEncoding: NSUTF8StringEncoding)
+
+    resultData = async repl standardOutput fileHandleForReading availableData
+    \ Give it 5 seconds to finish
+    if wait(5) then
+        ^NSString alloc initWithData: resultData encoding: NSUTF8StringEncoding
+    else {
+        repl terminate
+        ^"{\"error\": \"Your program took too long to run, so I killed it.\"}"
+    }
+}
+app handleGET: "/terminate" with: killRepl
+
+app handleGET: "/" with: { req, resp |
+    unless cookie = req cookieForName: #replId then {
+        resp addCookie: (WACookie new setName: #replId;
+                                     setValue: (NSProcessInfo processInfo globallyUniqueString);
+                                         self)
+    }
+
+    t :#html :[
+        t head: [
+            t link: fontURL      :{ #rel => #stylesheet, #type => #text/css },
+            t link: #"trytq.css" :{ #rel => #stylesheet, #type => #text/css },
+            t scriptsrc: #"jquery-1.4.2.min.js",
+            t scriptsrc: #"jquery.console.js",
+            t scriptsrc: #"trytq.js"
+        ],
+        t body: [
+            #"welcome; here you can try out tranquil.",
+            t div: nil :{ #id => #console }
+        ]
+    ]
+}
+
+\WASetDevelopmentMode(yes)
+app waitAndListenWithErrorHandler: { err |
+    "Couldn't start server: «err localizedDescription»" print
+    ^^1
+}

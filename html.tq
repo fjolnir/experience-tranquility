@@ -1,0 +1,82 @@
+@NSObject {
+    - toStringWithIndent: indent `" " * indent + self toString`
+}
+
+inlineTags = [#b, #i, #span]
+mustCloseTags = [#script, #style]
+
+@Tag {
+    accessors: [#name, #children, #attributes]
+
+    + html:title :bodyElements {
+        ^self :#html :[
+            Tag :#head :(Tag :#title :title),
+            Tag :#body :bodyElements
+        ]
+    }
+    + head: children `self :#head :children`
+    + body: children [:attributes] `self :#body :children :attributes`
+    + b: children `self :#b :children`
+    + i: children `self :#i :children`
+    + span: children [:attributes] `self :#span :children :attributes`
+    + div:  children [:attributes] `self :#div  :children :attributes`
+    + style: contents `self :#style :contents`
+    + script: contents `self :#script :contents :{ #type => #text/javascript }`
+    + scriptsrc: url `self :#script :nil :{ #type => #text/javascript, #src  => url }`
+    + link: url :attrs `self :#link :nil :({ #href => url } + attrs)`
+
+    + :name [:children :attributes] {
+        ^self new setName: name;
+              setChildren: children;
+            setAttributes: attributes;
+                     self
+    }
+
+    - _appendChild: child to: html indent: indent [hasSiblings: hasSiblings=no] {
+        if child respondsTo: #each: {
+            unless hasSiblings {
+                html append: "\n"
+                indent += 4
+            }
+            child each: { child |
+                self _appendChild: child to: html indent: indent hasSiblings: yes
+            }
+            ^yes
+        } else if child respondsTo: #call {
+            ^self _appendChild: (child call) to: html indent: indent hasSiblings: hasSiblings
+        } else if child {
+            indent = 0 unless html hasSuffix: "\n"
+            html append: (child toStringWithIndent: indent)
+            if hasSiblings and (child isa: Tag) and (inlineTags contains: child name) == no {
+                html append: "\n"
+            }
+        }
+        ^no
+    }
+    - toStringWithIndent: indent {
+        spaces = " " * indent
+        html   = "«spaces»<«@name»"
+
+        @attributes each: `attr | html append: " «attr left»=\"«attr right»\""`
+
+        if @children {
+            html append: #>
+            shouldIndent = self _appendChild: @children to: html indent: indent
+            if shouldIndent {
+                html append: "\n" unless html hasSuffix:"\n"
+                html append: spaces
+            }
+            html append: "</«@name»>"
+        } else {
+            if mustCloseTags contains: @name then
+                html append: "></«@name»>"
+            else
+                html append: #/>
+        }
+       ^html
+    }
+    - description {
+        ^self toStringWithIndent:0
+    }
+}
+

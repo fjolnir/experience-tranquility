@@ -1,0 +1,49 @@
+#!/usr/local/tranquil/bin/tranquil
+\ Simple sandboxed script that executes lines and prints results
+import "Foundation"
+import "sandbox.h"
+
+\ If we create the JIT engine after initializing the sandbox, llvm goes insane; consuming gigabytes of memory
+\ so we perform this no-op before sandboxing.
+TQProgram sharedProgram executeScript: "__unused = 1" onError: nil
+
+Setpriority(PRIO_PROCESS, 0, -20)
+if Sandbox_init(KSBXProfilePureComputation, SANDBOX_NAMED, (sberr = TQPointer withType:"*")) ~= 0 {
+    "Failed to set up sandbox! («sberr value»)" print
+    ^1
+}
+
+@NSFileHandle {
+    - writeString: str `self writeData: (str dataUsingEncoding: NSUTF8StringEncoding)`
+}
+
+stdoutBuf = ""
+@NSObject {
+    - print `stdoutBuf append: self toString + "\n"`
+}
+
+stderr = NSFileHandle fileHandleWithStandardError
+stdin  = NSFileHandle fileHandleWithStandardInput
+stdout = NSFileHandle fileHandleWithStandardOutput
+stdin readabilityHandler = { handle |
+    code = NSString alloc initWithData: handle availableData encoding: NSUTF8StringEncoding
+    stderr writeString: "in: «code»"
+    if code length > 0 {
+        output = {}
+        result = TQProgram sharedProgram executeScript: code + "\n"
+                                               onError: { err |
+            output[#error] = err localizedDescription
+        }
+        output[#result] = result toString
+        output[#class]  = result class toString
+        output[#stdout] = stdoutBuf
+        stdout writeabilityHandler = { handle |
+            handle writeabilityHandler = nil
+            handle writeData: (NSJSONSerialization dataWithJSONObject: output dictionaryRepresentation
+                                                              options: 0
+                                                                error: nil)
+            stdoutBuf = ""
+        }
+    }
+}
+NSRunLoop mainRunLoop runUntilDate: NSDate distantFuture
