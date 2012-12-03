@@ -29,13 +29,9 @@ getRepl = { conn |
     }
     ^task
 }
-killRepl = { conn |
-    ^nil unless cookie = conn getCookie: #replId
-    replTasks[cookie] terminate
-}
 
-HTTP new
-handleGET: "/execute" with: { conn |
+HTTP new handleGET: "/execute" with: { conn |
+    "«conn getCookie: #replId» exec: «conn requestQueryVar: #code»" print
     code = (conn requestQueryVar: #code) + "\n"
     repl = getRepl(conn)
 
@@ -50,7 +46,10 @@ handleGET: "/execute" with: { conn |
         ^"{\"error\": \"Your program took too long to run, so I killed it.\"}"
     }
 };
-handleGET: "/terminate" with: killRepl;
+handleGET: "/terminate" with: { conn |
+    ^nil unless cookie = conn getCookie: #replId
+    replTasks[cookie] terminate
+};
 handleGET: "/" with: { conn |
     unless cookie = conn getCookie: #replId {
         conn setCookie: #replId to: (NSProcessInfo processInfo globallyUniqueString)

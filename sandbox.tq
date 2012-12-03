@@ -22,12 +22,10 @@ stdoutBuf = ""
     - print `stdoutBuf append: self toString + "\n"`
 }
 
-stderr = NSFileHandle fileHandleWithStandardError
 stdin  = NSFileHandle fileHandleWithStandardInput
 stdout = NSFileHandle fileHandleWithStandardOutput
 stdin readabilityHandler = { handle |
     code = NSString alloc initWithData: handle availableData encoding: NSUTF8StringEncoding
-    stderr writeString: "in: «code»"
     if code length > 0 {
         output = {}
         result = TQProgram sharedProgram executeScript: code + "\n"
