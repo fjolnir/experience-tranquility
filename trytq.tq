@@ -1,22 +1,17 @@
-import "WebAppKit"
+import "HTTPKit"
 import "html"
-
-@WebApp < WAApplication {
-    + enableExternalAccess `yes`
-}
 
 t        = Tag
 maxRepls = 10
 maxCpu   = 0.05
-app      = WebApp applicationOnPort: 8080
 fontURL  = #"http://fonts.googleapis.com/css?family=Oxygen:400,700,300' rel='stylesheet"
 
 replTasks = {}
 
-getRepl = { req, resp |
-    ^nil unless cookie = req cookieForName: #replId
+getRepl = { conn |
+    ^nil unless cookie = conn getCookie: #replId
 
-    task = replTasks[cookie value]
+    task = replTasks[cookie]
     if task == nil {
         ^nil if replTasks count >= maxRepls
         task = NSTask new setLaunchPath: #sandbox;
@@ -28,23 +23,21 @@ getRepl = { req, resp |
         async {
             \ For some reason NSTaskDidTerminateNotification doesn't get sent
             task waitUntilExit
-            replTasks[cookie value] = nil
+            replTasks[cookie] = nil
         }
-        replTasks[cookie value] = task
+        replTasks[cookie] = task
     }
     ^task
 }
-killRepl = { req, resp |
-    ^nil unless cookie = req cookieForName: #replId
-    replTasks[cookie value] terminate
+killRepl = { conn |
+    ^nil unless cookie = conn getCookie: #replId
+    replTasks[cookie] terminate
 }
 
-app addRequestHandler: (WADirectoryHandler alloc initWithDirectory: #resources
-                                                       requestPath: "/")
-
-app handleGET: "/execute" with: { req, resp |
-    code = (req queryParameters at: #code) + "\n"
-    repl = getRepl(req, resp)
+HTTP new
+handleGET: "/execute" with: { conn |
+    code = (conn requestQueryVar: #code) + "\n"
+    repl = getRepl(conn)
 
     repl standardInput fileHandleForWriting writeData: (code dataUsingEncoding: NSUTF8StringEncoding)
 
@@ -56,14 +49,11 @@ app handleGET: "/execute" with: { req, resp |
         repl terminate
         ^"{\"error\": \"Your program took too long to run, so I killed it.\"}"
     }
-}
-app handleGET: "/terminate" with: killRepl
-
-app handleGET: "/" with: { req, resp |
-    unless cookie = req cookieForName: #replId then {
-        resp addCookie: (WACookie new setName: #replId;
-                                     setValue: (NSProcessInfo processInfo globallyUniqueString);
-                                         self)
+};
+handleGET: "/terminate" with: killRepl;
+handleGET: "/" with: { conn |
+    unless cookie = conn getCookie: #replId {
+        conn setCookie: #replId to: (NSProcessInfo processInfo globallyUniqueString)
     }
 
     t :#html :[
@@ -79,10 +69,9 @@ app handleGET: "/" with: { req, resp |
             t div: nil :{ #id => #console }
         ]
     ]
-}
+};
+setPublicDir: #resources;
+listenOnPort:8080 onError:{ reason | reason print. ^^1 }
 
-\WASetDevelopmentMode(yes)
-app waitAndListenWithErrorHandler: { err |
-    "Couldn't start server: «err localizedDescription»" print
-    ^^1
-}
+NSRunLoop mainRunLoop runUntilDate: NSDate distantFuture
+
