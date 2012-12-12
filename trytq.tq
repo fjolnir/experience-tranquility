@@ -4,7 +4,7 @@ import "html"
 t        = Tag
 maxRepls = 10
 maxCpu   = 0.05
-fontURL  = #"http://fonts.googleapis.com/css?family=Oxygen:400,700,300' rel='stylesheet"
+fontURL  = "http://fonts.googleapis.com/css?family=Oxygen:400,700,300"
 
 replTasks = {}
 
@@ -17,7 +17,7 @@ getRepl = { conn |
         task = NSTask new setLaunchPath: #sandbox;
                        setStandardInput: NSPipe new;
                       setStandardOutput: NSPipe new;
-                setCurrentDirectoryPath: #".";
+                setCurrentDirectoryPath: ".";
                                  launch;
                                    self
         async {
@@ -43,7 +43,7 @@ HTTP new handleGET: "/execute" with: { conn |
         ^NSString alloc initWithData: resultData encoding: NSUTF8StringEncoding
     else {
         repl terminate
-        ^"{\"error\": \"Your program took too long to run, so I killed it.\"}"
+        ^'{"error": "Your program took too long to run, so I killed it."}'
     }
 };
 handleGET: "/terminate" with: { conn |
