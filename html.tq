@@ -2,7 +2,7 @@
     - toStringWithIndent: indent `" " * indent + self toString`
 }
 
-inlineTags = [#b, #i, #span]
+inlineTags    = [#b, #i, #span]
 mustCloseTags = [#script, #style]
 
 @Tag {
@@ -14,16 +14,16 @@ mustCloseTags = [#script, #style]
             Tag :#body :bodyElements
         ]
     }
-    + head: children `self :#head :children`
+    + head: children               `self :#head :children`
     + body: children [:attributes] `self :#body :children :attributes`
-    + b: children `self :#b :children`
-    + i: children `self :#i :children`
+    + b: children                  `self :#b :children`
+    + i: children                  `self :#i :children`
     + span: children [:attributes] `self :#span :children :attributes`
     + div:  children [:attributes] `self :#div  :children :attributes`
-    + style: contents `self :#style :contents`
-    + script: contents `self :#script :contents :{ #type => #text/javascript }`
-    + scriptsrc: url `self :#script :nil :{ #type => #text/javascript, #src  => url }`
-    + link: url :attrs `self :#link :nil :({ #href => url } + attrs)`
+    + style: contents              `self :#style :contents`
+    + script: contents             `self :#script :contents :{ #type => #text/javascript }`
+    + scriptsrc: url               `self :#script :nil :{ #type => #text/javascript, #src  => url }`
+    + link: url :attrs             `self :#link :nil :({ #href => url } + attrs)`
 
     + :name [:children :attributes] {
         ^self new setName: name;
